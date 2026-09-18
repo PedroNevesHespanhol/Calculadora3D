@@ -214,6 +214,10 @@ fieldset {
   font-size: 1.5rem;
 }
 
+.price-card small {
+  opacity: 0.85;
+}
+
 .quote-preview {
   white-space: pre-wrap;
   word-break: break-word;

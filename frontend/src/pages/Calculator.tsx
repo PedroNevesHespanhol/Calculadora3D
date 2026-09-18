@@ -17,6 +17,7 @@ export default function Calculator() {
   const [gramsUsed, setGramsUsed] = useState("");
   const [printHours, setPrintHours] = useState("");
   const [printMinutesPart, setPrintMinutesPart] = useState("");
+  const [quantity, setQuantity] = useState("1");
   const [failureRatePct, setFailureRatePct] = useState("");
   const [consumerMarkup, setConsumerMarkup] = useState("");
   const [resellerMarkup, setResellerMarkup] = useState("");
@@ -102,6 +103,7 @@ export default function Calculator() {
       resellerMarkup: Number(resellerMarkup || 1),
       marketplaceFeePct: Number(marketplaceFeePct || 0),
       cardFeePct: Number(cardFeePct || 0),
+      quantity: Number(quantity || 1),
     });
   }, [
     selectedPrinter,
@@ -119,6 +121,7 @@ export default function Calculator() {
     resellerMarkup,
     marketplaceFeePct,
     cardFeePct,
+    quantity,
   ]);
 
   function toggleAccessory(id: string) {
@@ -141,6 +144,7 @@ export default function Calculator() {
       filamentId,
       gramsUsed: Number(gramsUsed),
       printMinutes: totalPrintMinutes,
+      quantity: Number(quantity || 1),
       failureRatePct: Number(failureRatePct || 0),
       consumerMarkup: Number(consumerMarkup || 1),
       resellerMarkup: Number(resellerMarkup || 1),
@@ -233,6 +237,18 @@ export default function Calculator() {
           </label>
 
           <label>
+            Quantidade de peças no lote
+            <input
+              type="number"
+              min="1"
+              step="1"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
+            <span className="hint">Gramas e tempo acima são do lote inteiro; o preço será calculado por peça.</span>
+          </label>
+
+          <label>
             Taxa de falha (%)
             <input type="number" min="0" max="100" step="0.1" value={failureRatePct} onChange={(e) => setFailureRatePct(e.target.value)} />
           </label>
@@ -289,7 +305,7 @@ export default function Calculator() {
         </div>
 
         <div className="result-panel">
-          <h3>Resultado</h3>
+          <h3>Resultado {result && result.quantity > 1 && <span className="hint">(por peça, lote de {result.quantity})</span>}</h3>
           {!result && <p className="hint">Preencha gramas e tempo de impressão para calcular.</p>}
           {result && (
             <>
@@ -312,24 +328,33 @@ export default function Calculator() {
                     <td>{currency(result.packagingCost)}</td>
                   </tr>
                   <tr className="subtotal">
-                    <td>Custo direto</td>
+                    <td>Custo direto (unitário)</td>
                     <td>{currency(result.directCost)}</td>
                   </tr>
                   <tr className="subtotal">
-                    <td>Custo com falha</td>
+                    <td>Custo com falha (unitário)</td>
                     <td>{currency(result.costWithFailure)}</td>
                   </tr>
+                  {result.quantity > 1 && (
+                    <tr className="subtotal">
+                      <td>Custo com falha (lote de {result.quantity})</td>
+                      <td>{currency(result.costWithFailure * result.quantity)}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
 
               <div className="price-cards">
                 <div className="price-card">
-                  <span>Preço Consumidor Final</span>
+                  <span>Preço Consumidor Final (unitário)</span>
                   <strong>{currency(result.consumerFinalPrice)}</strong>
+                  <small>Seu lucro: {currency(result.myProfitConsumerSale)}</small>
                 </div>
                 <div className="price-card">
-                  <span>Preço para Lojista</span>
+                  <span>Preço para Lojista (unitário)</span>
                   <strong>{currency(result.resellerFinalPrice)}</strong>
+                  <small>Seu lucro: {currency(result.myProfitResellerSale)}</small>
+                  <small>Lucro do lojista ao revender: {currency(result.resellerProfit)}</small>
                 </div>
               </div>
             </>

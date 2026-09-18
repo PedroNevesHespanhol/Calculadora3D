@@ -28,6 +28,8 @@ export interface Settings {
 }
 
 export interface CalcResult {
+  /** Quantidade de peças entre as quais o custo do lote foi rateado. */
+  quantity: number;
   filamentCost: number;
   energyCost: number;
   depreciationCost: number;
@@ -38,6 +40,12 @@ export interface CalcResult {
   consumerFinalPrice: number;
   resellerPriceBeforeFees: number;
   resellerFinalPrice: number;
+  /** Lucro líquido por peça ao vender direto ao consumidor final. */
+  myProfitConsumerSale: number;
+  /** Lucro líquido por peça ao vender para um lojista. */
+  myProfitResellerSale: number;
+  /** Lucro líquido por peça que o lojista pode obter revendendo ao consumidor final. */
+  resellerProfit: number;
 }
 
 export interface PieceInput {
@@ -45,6 +53,7 @@ export interface PieceInput {
   filamentId: string;
   gramsUsed: number;
   printMinutes: number;
+  quantity: number;
   failureRatePct: number;
   consumerMarkup: number;
   resellerMarkup: number;

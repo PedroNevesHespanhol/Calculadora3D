@@ -28,9 +28,10 @@ export default function History() {
         <thead>
           <tr>
             <th>Peça</th>
-            <th>Custo direto</th>
-            <th>Preço consumidor</th>
-            <th>Preço lojista</th>
+            <th>Qtd. lote</th>
+            <th>Custo direto (un.)</th>
+            <th>Preço consumidor (un.)</th>
+            <th>Preço lojista (un.)</th>
             <th>Data</th>
             <th></th>
           </tr>
@@ -39,6 +40,7 @@ export default function History() {
           {items.map((item) => (
             <tr key={item.id}>
               <td>{item.name}</td>
+              <td>{item.result.quantity ?? 1}</td>
               <td>{currency(item.result.directCost)}</td>
               <td>{currency(item.result.consumerFinalPrice)}</td>
               <td>{currency(item.result.resellerFinalPrice)}</td>

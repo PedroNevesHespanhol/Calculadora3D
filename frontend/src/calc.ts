@@ -15,6 +15,8 @@ export interface CalcInput {
   resellerMarkup: number;
   marketplaceFeePct: number;
   cardFeePct: number;
+  /** Quantidade de peças produzidas na mesma impressão (gramas e tempo são do lote todo). */
+  quantity: number;
 }
 
 /** Margem mínima saudável sobre o custo para o preço de lojista, mesmo com markup de consumidor baixo. */
@@ -45,14 +47,19 @@ export function calculatePricing(input: CalcInput): CalcResult {
     resellerMarkup,
     marketplaceFeePct,
     cardFeePct,
+    quantity,
   } = input;
+
+  const pieceCount = quantity > 0 ? quantity : 1;
 
   const printHours = printMinutes / 60;
 
-  const filamentCost = (gramsUsed / 1000) * filamentPricePerKg;
-  const energyCost = printHours * (printerPowerWatts / 1000) * energyPriceKwh;
+  // Gramas e tempo de impressão são do lote inteiro; dividimos pelo nº de peças
+  // para chegar ao custo unitário. Embalagem/acessórios já são informados por peça.
+  const filamentCost = (gramsUsed / 1000) * filamentPricePerKg / pieceCount;
+  const energyCost = (printHours * (printerPowerWatts / 1000) * energyPriceKwh) / pieceCount;
   const depreciationCost =
-    printerLifetimeHours > 0 ? printHours * (printerPurchasePrice / printerLifetimeHours) : 0;
+    printerLifetimeHours > 0 ? (printHours * (printerPurchasePrice / printerLifetimeHours)) / pieceCount : 0;
   const packagingCost = accessoriesCost + extraPackagingCost;
 
   const directCost = filamentCost + energyCost + depreciationCost + packagingCost;
@@ -73,7 +80,13 @@ export function calculatePricing(input: CalcInput): CalcResult {
       ? resellerPriceBeforeFees
       : resellerPriceBeforeFees / (1 - resellerFeePct / 100);
 
+  // Lucro líquido (já descontadas as taxas de venda) em cada cenário.
+  const myProfitConsumerSale = consumerPriceBeforeFees - costWithFailure;
+  const myProfitResellerSale = resellerPriceBeforeFees - costWithFailure;
+  const resellerProfit = consumerPriceBeforeFees - resellerFinalPrice;
+
   return {
+    quantity: pieceCount,
     filamentCost,
     energyCost,
     depreciationCost,
@@ -84,5 +97,8 @@ export function calculatePricing(input: CalcInput): CalcResult {
     consumerFinalPrice,
     resellerPriceBeforeFees,
     resellerFinalPrice,
+    myProfitConsumerSale,
+    myProfitResellerSale,
+    resellerProfit,
   };
 }
