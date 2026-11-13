@@ -10,13 +10,19 @@ export default function Printers() {
   const [lifetimeHours, setLifetimeHours] = useState("5000");
   const [error, setError] = useState<string | null>(null);
 
-  function load() {
-    setItems(printersStore.list());
+  async function load() {
+    try {
+      setItems(await printersStore.list());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const power = Number(powerWatts);
@@ -26,7 +32,12 @@ export default function Printers() {
       setError("Preencha todos os campos com valores válidos.");
       return;
     }
-    printersStore.add({ name: name.trim(), powerWatts: power, purchasePrice: price, lifetimeHours: lifetime });
+    try {
+      await printersStore.add({ name: name.trim(), powerWatts: power, purchasePrice: price, lifetimeHours: lifetime });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return;
+    }
     setName("");
     setPowerWatts("");
     setPurchasePrice("");
@@ -34,8 +45,13 @@ export default function Printers() {
     load();
   }
 
-  function handleDelete(id: string) {
-    printersStore.remove(id);
+  async function handleDelete(id: string) {
+    setError(null);
+    try {
+      await printersStore.remove(id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
     load();
   }
 

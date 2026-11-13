@@ -228,3 +228,26 @@ fieldset {
   font-family: inherit;
   font-size: 0.9rem;
 }
+
+.nav-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.login {
+  max-width: 420px;
+  margin: 0 auto;
+}

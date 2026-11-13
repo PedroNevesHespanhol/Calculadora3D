@@ -8,13 +8,19 @@ export default function Accessories() {
   const [cost, setCost] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  function load() {
-    setItems(accessoriesStore.list());
+  async function load() {
+    try {
+      setItems(await accessoriesStore.list());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const value = Number(cost);
@@ -22,14 +28,24 @@ export default function Accessories() {
       setError("Preencha nome e custo válidos.");
       return;
     }
-    accessoriesStore.add({ name: name.trim(), cost: value });
+    try {
+      await accessoriesStore.add({ name: name.trim(), cost: value });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return;
+    }
     setName("");
     setCost("");
     load();
   }
 
-  function handleDelete(id: string) {
-    accessoriesStore.remove(id);
+  async function handleDelete(id: string) {
+    setError(null);
+    try {
+      await accessoriesStore.remove(id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
     load();
   }
 

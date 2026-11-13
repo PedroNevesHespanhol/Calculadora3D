@@ -8,13 +8,19 @@ export default function Filaments() {
   const [pricePerKg, setPricePerKg] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  function load() {
-    setItems(filamentsStore.list());
+  async function load() {
+    try {
+      setItems(await filamentsStore.list());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const price = Number(pricePerKg);
@@ -22,14 +28,24 @@ export default function Filaments() {
       setError("Preencha nome e preço por kg válidos.");
       return;
     }
-    filamentsStore.add({ name: name.trim(), pricePerKg: price });
+    try {
+      await filamentsStore.add({ name: name.trim(), pricePerKg: price });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return;
+    }
     setName("");
     setPricePerKg("");
     load();
   }
 
-  function handleDelete(id: string) {
-    filamentsStore.remove(id);
+  async function handleDelete(id: string) {
+    setError(null);
+    try {
+      await filamentsStore.remove(id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
     load();
   }
 

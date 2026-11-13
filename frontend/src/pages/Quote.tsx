@@ -47,17 +47,37 @@ export default function Quote() {
   const [error, setError] = useState<string | null>(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    setPieces(piecesStore.list());
-    const draft = quoteDraftStore.get();
-    setClientName(draft.clientName);
-    setNotes(draft.notes);
-    setItems(draft.items);
-  }, []);
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   useEffect(() => {
-    quoteDraftStore.save({ clientName, notes, items });
-  }, [clientName, notes, items]);
+    let cancelled = false;
+    Promise.all([piecesStore.list(), quoteDraftStore.get()])
+      .then(([loadedPieces, draft]) => {
+        if (cancelled) return;
+        setPieces(loadedPieces);
+        setClientName(draft.clientName);
+        setNotes(draft.notes);
+        setItems(draft.items);
+        setDraftLoaded(true);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Salva o rascunho no banco ~1s depois da última alteração (evita uma requisição por tecla).
+  useEffect(() => {
+    if (!draftLoaded) return;
+    const timer = setTimeout(() => {
+      quoteDraftStore.save({ clientName, notes, items }).catch((err) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [draftLoaded, clientName, notes, items]);
 
   const selectedPiece = useMemo(() => pieces.find((p) => p.id === selectedPieceId) ?? null, [pieces, selectedPieceId]);
 
@@ -111,7 +131,6 @@ export default function Quote() {
     setItems([]);
     setClientName("");
     setNotes("");
-    quoteDraftStore.clear();
   }
 
   async function handleCopy() {

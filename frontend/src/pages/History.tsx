@@ -7,23 +7,35 @@ const currency = (n: number) => `R$ ${n.toFixed(2)}`;
 export default function History() {
   const [items, setItems] = useState<Piece[]>([]);
 
-  function load() {
-    setItems(
-      [...piecesStore.list()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    );
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    try {
+      const list = await piecesStore.list();
+      setItems(list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
-  function handleDelete(id: string) {
-    piecesStore.remove(id);
+  async function handleDelete(id: string) {
+    setError(null);
+    try {
+      await piecesStore.remove(id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
     load();
   }
 
   return (
     <section>
       <h2>Histórico de peças</h2>
-      <p className="hint">Salvo localmente no seu navegador.</p>
+      {error && <p className="error">{error}</p>}
       <table>
         <thead>
           <tr>

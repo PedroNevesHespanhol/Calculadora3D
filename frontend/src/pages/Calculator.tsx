@@ -31,10 +31,20 @@ export default function Calculator() {
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const p = printersStore.list();
-    const f = filamentsStore.list();
-    const a = accessoriesStore.list();
-    const s = settingsStore.get();
+    let cancelled = false;
+    Promise.all([printersStore.list(), filamentsStore.list(), accessoriesStore.list(), settingsStore.get()])
+      .then(([p, f, a, s]) => {
+        if (!cancelled) applyLoaded(p, f, a, s);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function applyLoaded(p: Printer[], f: Filament[], a: Accessory[], s: Settings) {
     setPrinters(p);
     setFilaments(f);
     setAccessories(a);
@@ -46,7 +56,7 @@ export default function Calculator() {
     setResellerMarkup(String(s.defaultResellerMarkup));
     setMarketplaceFeePct(String(s.marketplaceFeePct));
     setCardFeePct(String(s.cardFeePct));
-  }, []);
+  }
 
   function handleConsumerMarkupChange(value: string) {
     setConsumerMarkup(value);
@@ -128,7 +138,7 @@ export default function Calculator() {
     setSelectedAccessoryIds((prev) => (prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]));
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!result || !printerId || !filamentId) {
       setError("Preencha os campos da calculadora antes de salvar.");
       return;
@@ -138,7 +148,18 @@ export default function Calculator() {
       return;
     }
     setError(null);
-    piecesStore.add({
+    setSaveMessage(null);
+    try {
+      await savePiece();
+      setSaveMessage("Peça salva no histórico.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function savePiece() {
+    if (!result || !printerId || !filamentId) throw new Error("Preencha os campos da calculadora antes de salvar.");
+    return piecesStore.add({
       name: pieceName.trim(),
       printerId,
       filamentId,
@@ -155,10 +176,9 @@ export default function Calculator() {
       result,
       createdAt: new Date().toISOString(),
     });
-    setSaveMessage("Peça salva no histórico.");
   }
 
-  if (!settings) return <p>Carregando...</p>;
+  if (!settings) return error ? <p className="error">{error}</p> : <p>Carregando...</p>;
 
   if (printers.length === 0 || filaments.length === 0) {
     return (

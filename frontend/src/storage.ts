@@ -1,18 +1,12 @@
 import { suggestResellerMarkup } from "./calc.js";
+import { supabase } from "./supabase.js";
 import type { Accessory, Filament, Piece, Printer, QuoteDraft, Settings } from "./types.js";
 
-const KEYS = {
-  printers: "calc3d.printers",
-  filaments: "calc3d.filaments",
-  accessories: "calc3d.accessories",
-  settings: "calc3d.settings",
-  pieces: "calc3d.pieces",
-  quoteDraft: "calc3d.quoteDraft",
-} as const;
+export type CollectionTable = "printers" | "filaments" | "accessories" | "pieces";
 
 const DEFAULT_CONSUMER_MARKUP = 3;
 
-const DEFAULT_SETTINGS: Settings = {
+export const DEFAULT_SETTINGS: Settings = {
   energyPriceKwh: 0.95,
   defaultFailureRatePct: 5,
   defaultConsumerMarkup: DEFAULT_CONSUMER_MARKUP,
@@ -21,92 +15,94 @@ const DEFAULT_SETTINGS: Settings = {
   cardFeePct: 0,
 };
 
-const DEFAULT_QUOTE_DRAFT: QuoteDraft = {
+export const DEFAULT_QUOTE_DRAFT: QuoteDraft = {
   clientName: "",
   notes: "",
   items: [],
 };
 
-function loadList<T>(key: string): T[] {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+interface Row<T> {
+  id: string;
+  data: Omit<T, "id">;
 }
 
-function saveList<T>(key: string, items: T[]): void {
-  localStorage.setItem(key, JSON.stringify(items));
+function fail(action: string, error: { message: string }): never {
+  throw new Error(`Erro ao ${action}: ${error.message}`);
 }
 
-function makeId(): string {
-  return crypto.randomUUID();
-}
-
-function createCrud<T extends { id: string }>(key: string) {
+function createCrud<T extends { id: string }>(table: CollectionTable) {
   return {
-    list(): T[] {
-      return loadList<T>(key);
+    async list(): Promise<T[]> {
+      const { data, error } = await supabase
+        .from(table)
+        .select("id, data")
+        .order("created_at", { ascending: true });
+      if (error) fail("carregar dados", error);
+      return (data as Row<T>[]).map((row) => ({ ...row.data, id: row.id }) as T);
     },
-    add(item: Omit<T, "id">): T {
-      const items = loadList<T>(key);
-      const newItem = { ...item, id: makeId() } as T;
-      saveList(key, [...items, newItem]);
-      return newItem;
+    async add(item: Omit<T, "id">): Promise<T> {
+      const id = crypto.randomUUID();
+      const { error } = await supabase.from(table).insert({ id, data: item });
+      if (error) fail("salvar", error);
+      return { ...item, id } as T;
     },
-    update(id: string, item: Omit<T, "id">): T | null {
-      const items = loadList<T>(key);
-      const index = items.findIndex((i) => i.id === id);
-      if (index === -1) return null;
-      const updated = { ...item, id } as T;
-      items[index] = updated;
-      saveList(key, items);
-      return updated;
+    async update(id: string, item: Omit<T, "id">): Promise<T> {
+      const { error } = await supabase.from(table).update({ data: item }).eq("id", id);
+      if (error) fail("atualizar", error);
+      return { ...item, id } as T;
     },
-    remove(id: string): void {
-      const items = loadList<T>(key).filter((i) => i.id !== id);
-      saveList(key, items);
+    async remove(id: string): Promise<void> {
+      const { error } = await supabase.from(table).delete().eq("id", id);
+      if (error) fail("remover", error);
     },
   };
 }
 
-export const printersStore = createCrud<Printer>(KEYS.printers);
-export const filamentsStore = createCrud<Filament>(KEYS.filaments);
-export const accessoriesStore = createCrud<Accessory>(KEYS.accessories);
-export const piecesStore = createCrud<Piece>(KEYS.pieces);
+export const printersStore = createCrud<Printer>("printers");
+export const filamentsStore = createCrud<Filament>("filaments");
+export const accessoriesStore = createCrud<Accessory>("accessories");
+export const piecesStore = createCrud<Piece>("pieces");
+
+async function getUserId(): Promise<string> {
+  const { data } = await supabase.auth.getSession();
+  const id = data.session?.user.id;
+  if (!id) throw new Error("Sessão expirada. Faça login novamente.");
+  return id;
+}
+
+async function readUserData(column: "settings" | "quote_draft") {
+  const { data, error } = await supabase.from("user_data").select(column).maybeSingle();
+  if (error) fail("carregar dados", error);
+  return (data as Record<string, unknown> | null)?.[column] ?? null;
+}
+
+async function writeUserData(values: { settings?: Settings; quote_draft?: QuoteDraft | null }) {
+  const user_id = await getUserId();
+  const { error } = await supabase
+    .from("user_data")
+    .upsert({ user_id, ...values, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) fail("salvar", error);
+}
 
 export const settingsStore = {
-  get(): Settings {
-    try {
-      const raw = localStorage.getItem(KEYS.settings);
-      if (!raw) return DEFAULT_SETTINGS;
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
-    } catch {
-      return DEFAULT_SETTINGS;
-    }
+  async get(): Promise<Settings> {
+    const saved = (await readUserData("settings")) as Partial<Settings> | null;
+    return { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
   },
-  save(settings: Settings): void {
-    localStorage.setItem(KEYS.settings, JSON.stringify(settings));
+  async save(settings: Settings): Promise<void> {
+    await writeUserData({ settings });
   },
 };
 
 export const quoteDraftStore = {
-  get(): QuoteDraft {
-    try {
-      const raw = localStorage.getItem(KEYS.quoteDraft);
-      if (!raw) return DEFAULT_QUOTE_DRAFT;
-      return { ...DEFAULT_QUOTE_DRAFT, ...JSON.parse(raw) };
-    } catch {
-      return DEFAULT_QUOTE_DRAFT;
-    }
+  async get(): Promise<QuoteDraft> {
+    const saved = (await readUserData("quote_draft")) as Partial<QuoteDraft> | null;
+    return { ...DEFAULT_QUOTE_DRAFT, ...(saved ?? {}) };
   },
-  save(draft: QuoteDraft): void {
-    localStorage.setItem(KEYS.quoteDraft, JSON.stringify(draft));
+  async save(draft: QuoteDraft): Promise<void> {
+    await writeUserData({ quote_draft: draft });
   },
-  clear(): void {
-    localStorage.removeItem(KEYS.quoteDraft);
+  async clear(): Promise<void> {
+    await writeUserData({ quote_draft: null });
   },
 };
